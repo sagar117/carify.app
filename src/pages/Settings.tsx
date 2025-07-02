@@ -4,13 +4,13 @@ import { Save, Volume2, Phone, Mic, HelpCircle, Key } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const [twilioSettings, setTwilioSettings] = useState({
-    accountSid: 'AC7046bb23c5ce1942ecae73488e5b26ef',
-    authToken: 'dbc27b669b08222e27b9976ca0c01ad8',
+    accountSid: '',
+    authToken: '',
     phoneNumber: '+19787319073'
   });
   
   const [elevenLabsSettings, setElevenLabsSettings] = useState({
-    apiKey: 'sk_d340b507f8ccf689191626fc93e25c62bc19d7caca68c291',
+    apiKey: '',
     voiceId: 'premium-male-voice-1',
     model: 'eleven_turbo_v2'
   });
