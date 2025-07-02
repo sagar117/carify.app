@@ -1,376 +1,268 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { Save, Volume2, Phone, Mic, HelpCircle, Key } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Eye, EyeOff, Phone, Key, Globe, AlertCircle, CheckCircle } from 'lucide-react';
+import { settingsService } from '../services/settingsService';
+import { TwilioSettings } from '../types/settings';
 
 const Settings: React.FC = () => {
-  const [twilioSettings, setTwilioSettings] = useState({
-    accountSid: '',
-    authToken: '',
-    phoneNumber: '+19787319073'
-  });
-  
-  const [elevenLabsSettings, setElevenLabsSettings] = useState({
-    apiKey: '',
-    voiceId: 'premium-male-voice-1',
-    model: 'eleven_turbo_v2'
-  });
-  
-  const [callSettings, setCallSettings] = useState({
-    maxCallDuration: 10,
-    recordCalls: true,
-    useBackupProvider: false,
-    backupProviderId: ''
-  });
-  
-  const [apiTestStatus, setApiTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  
-  const handleTwilioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setTwilioSettings(prev => ({ ...prev, [name]: value }));
-  };
-  
-  const handleElevenLabsChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setElevenLabsSettings(prev => ({ ...prev, [name]: value }));
-  };
-  
-  const handleCallSettingsChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target as HTMLInputElement;
-    
-    setCallSettings(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    }));
-  };
-  
-  const testApiConnection = async () => {
+  const [showAuthToken, setShowAuthToken] = useState(false);
+  const [isConfigured, setIsConfigured] = useState(false);
+  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<TwilioSettings>();
+
+  useEffect(() => {
+    // Load existing settings
+    const settings = settingsService.getTwilioSettings();
+    reset(settings);
+    setIsConfigured(settingsService.isTwilioConfigured());
+  }, [reset]);
+
+  // Watch form values to update configuration status
+  const watchedValues = watch();
+  useEffect(() => {
+    const hasAllFields = !!(watchedValues.accountSid && watchedValues.authToken && watchedValues.phoneNumber);
+    setIsConfigured(hasAllFields);
+  }, [watchedValues]);
+
+  const onSubmit = async (data: TwilioSettings) => {
     try {
-      setApiTestStatus('testing');
-      
-      // Simulate API test
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Success!
-      setApiTestStatus('success');
-      toast.success('API connection successful!');
+      // Validate phone number format
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+      if (!phoneRegex.test(data.phoneNumber.replace(/[\s\-\(\)]/g, ''))) {
+        toast.error('Please enter a valid phone number');
+        return;
+      }
+
+      // Clean phone number
+      const cleanedData = {
+        ...data,
+        phoneNumber: data.phoneNumber.replace(/[\s\-\(\)]/g, ''),
+        voiceUrl: data.voiceUrl || import.meta.env.VITE_API_BASE_URL + '/incoming'
+      };
+
+      settingsService.saveTwilioSettings(cleanedData);
+      toast.success('Settings saved successfully!');
+      setIsConfigured(true);
     } catch (error) {
-      setApiTestStatus('error');
-      toast.error('API connection failed. Please check your credentials.');
+      console.error('Error saving settings:', error);
+      toast.error('Failed to save settings. Please try again.');
     }
   };
-  
-  const saveSettings = () => {
-    // Simulate saving
-    toast.success('Settings saved successfully!');
+
+  const handleReset = () => {
+    const defaultSettings: TwilioSettings = {
+      accountSid: '',
+      authToken: '',
+      phoneNumber: '',
+      voiceUrl: ''
+    };
+    reset(defaultSettings);
+    settingsService.saveTwilioSettings(defaultSettings);
+    toast.info('Settings reset to default values');
+    setIsConfigured(false);
   };
-  
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Configure your voice agent and API connections
-        </p>
-      </div>
-      
-      {/* Twilio Settings */}
-      <div className="bg-white shadow sm:rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200 flex items-center">
-          <Phone className="h-5 w-5 text-gray-400 mr-2" />
-          <h3 className="text-lg font-medium leading-6 text-gray-900">Twilio Settings</h3>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-2xl mx-auto">
+        <div className="text-center mb-8">
+          <div className="mx-auto h-12 w-12 bg-blue-500 rounded-full flex items-center justify-center mb-4">
+            <SettingsIcon className="h-6 w-6 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
+          <p className="text-gray-600">Configure your Twilio credentials for voice calls</p>
         </div>
-        <div className="px-4 py-5 sm:p-6">
-          <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-            <div className="sm:col-span-3">
-              <label htmlFor="accountSid" className="block text-sm font-medium text-gray-700">
-                Account SID
-              </label>
-              <div className="mt-1">
-                <input
-                  type="text"
-                  id="accountSid"
-                  name="accountSid"
-                  className="shadow-sm focus:ring-sky-500 focus:border-sky-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  value={twilioSettings.accountSid}
-                  onChange={handleTwilioChange}
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Find in your Twilio console dashboard
-              </p>
-            </div>
-            
-            <div className="sm:col-span-3">
-              <label htmlFor="authToken" className="block text-sm font-medium text-gray-700">
-                Auth Token
-              </label>
-              <div className="mt-1">
-                <input
-                  type="password"
-                  id="authToken"
-                  name="authToken"
-                  className="shadow-sm focus:ring-sky-500 focus:border-sky-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  value={twilioSettings.authToken}
-                  onChange={handleTwilioChange}
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Find in your Twilio console dashboard
-              </p>
-            </div>
-            
-            <div className="sm:col-span-3">
-              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
-                Twilio Phone Number
-              </label>
-              <div className="mt-1">
-                <input
-                  type="text"
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  className="shadow-sm focus:ring-sky-500 focus:border-sky-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  value={twilioSettings.phoneNumber}
-                  onChange={handleTwilioChange}
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                The phone number to use for outbound calls
-              </p>
+
+        <div className="bg-white shadow-xl rounded-lg overflow-hidden">
+          {/* Configuration Status */}
+          <div className={`px-6 py-4 border-b ${isConfigured ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+            <div className="flex items-center">
+              {isConfigured ? (
+                <>
+                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                  <span className="text-green-700 font-medium">Twilio is configured and ready</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="h-5 w-5 text-amber-500 mr-2" />
+                  <span className="text-amber-700 font-medium">Twilio configuration required</span>
+                </>
+              )}
             </div>
           </div>
-        </div>
-      </div>
-      
-      {/* Eleven Labs Settings */}
-      <div className="bg-white shadow sm:rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200 flex items-center">
-          <Volume2 className="h-5 w-5 text-gray-400 mr-2" />
-          <h3 className="text-lg font-medium leading-6 text-gray-900">Eleven Labs Settings</h3>
-        </div>
-        <div className="px-4 py-5 sm:p-6">
-          <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-            <div className="sm:col-span-3">
-              <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700">
-                API Key
-              </label>
-              <div className="mt-1">
-                <input
-                  type="password"
-                  id="apiKey"
-                  name="apiKey"
-                  className="shadow-sm focus:ring-sky-500 focus:border-sky-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  value={elevenLabsSettings.apiKey}
-                  onChange={handleElevenLabsChange}
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Find in your Eleven Labs dashboard
-              </p>
-            </div>
-            
-            <div className="sm:col-span-3">
-              <label htmlFor="voiceId" className="block text-sm font-medium text-gray-700">
-                Voice ID
-              </label>
-              <div className="mt-1">
-                <select
-                  id="voiceId"
-                  name="voiceId"
-                  className="shadow-sm focus:ring-sky-500 focus:border-sky-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  value={elevenLabsSettings.voiceId}
-                  onChange={handleElevenLabsChange}
-                >
-                  <option value="premium-male-voice-1">Professional Male (Premium)</option>
-                  <option value="premium-female-voice-1">Professional Female (Premium)</option>
-                  <option value="standard-male-voice-1">Standard Male</option>
-                  <option value="standard-female-voice-1">Standard Female</option>
-                  <option value="custom-voice-1">Custom Voice Upload</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="sm:col-span-3">
-              <label htmlFor="model" className="block text-sm font-medium text-gray-700">
-                Voice Model
-              </label>
-              <div className="mt-1">
-                <select
-                  id="model"
-                  name="model"
-                  className="shadow-sm focus:ring-sky-500 focus:border-sky-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  value={elevenLabsSettings.model}
-                  onChange={handleElevenLabsChange}
-                >
-                  <option value="eleven_turbo_v2">Eleven Turbo v2 (Recommended)</option>
-                  <option value="eleven_multilingual_v2">Multilingual v2</option>
-                  <option value="eleven_monolingual_v1">Monolingual v1</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Call Settings */}
-      <div className="bg-white shadow sm:rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200 flex items-center">
-          <Mic className="h-5 w-5 text-gray-400 mr-2" />
-          <h3 className="text-lg font-medium leading-6 text-gray-900">Call Settings</h3>
-        </div>
-        <div className="px-4 py-5 sm:p-6">
-          <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-            <div className="sm:col-span-3">
-              <label htmlFor="maxCallDuration" className="block text-sm font-medium text-gray-700">
-                Maximum Call Duration (minutes)
-              </label>
-              <div className="mt-1">
-                <input
-                  type="number"
-                  id="maxCallDuration"
-                  name="maxCallDuration"
-                  min="1"
-                  max="30"
-                  className="shadow-sm focus:ring-sky-500 focus:border-sky-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  value={callSettings.maxCallDuration}
-                  onChange={handleCallSettingsChange}
-                />
-              </div>
-            </div>
-            
-            <div className="sm:col-span-3">
-              <div className="flex items-start mt-6">
-                <div className="flex items-center h-5">
-                  <input
-                    id="recordCalls"
-                    name="recordCalls"
-                    type="checkbox"
-                    className="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded"
-                    checked={callSettings.recordCalls}
-                    onChange={handleCallSettingsChange}
-                  />
-                </div>
-                <div className="ml-3 text-sm">
-                  <label htmlFor="recordCalls" className="font-medium text-gray-700">Record Calls</label>
-                  <p className="text-gray-500">Store call recordings for quality and training purposes</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="sm:col-span-3">
-              <div className="flex items-start">
-                <div className="flex items-center h-5">
-                  <input
-                    id="useBackupProvider"
-                    name="useBackupProvider"
-                    type="checkbox"
-                    className="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded"
-                    checked={callSettings.useBackupProvider}
-                    onChange={handleCallSettingsChange}
-                  />
-                </div>
-                <div className="ml-3 text-sm">
-                  <label htmlFor="useBackupProvider" className="font-medium text-gray-700">Use Backup Provider</label>
-                  <p className="text-gray-500">Enable fallback to a secondary voice provider if primary fails</p>
-                </div>
-              </div>
-            </div>
-            
-            {callSettings.useBackupProvider && (
-              <div className="sm:col-span-3">
-                <label htmlFor="backupProviderId" className="block text-sm font-medium text-gray-700">
-                  Backup Provider ID
+
+          <div className="p-8">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <div>
+                <label htmlFor="accountSid" className="block text-sm font-medium text-gray-700 mb-2">
+                  Twilio Account SID *
                 </label>
-                <div className="mt-1">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Key className="h-5 w-5 text-gray-400" />
+                  </div>
                   <input
                     type="text"
-                    id="backupProviderId"
-                    name="backupProviderId"
-                    className="shadow-sm focus:ring-sky-500 focus:border-sky-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    value={callSettings.backupProviderId}
-                    onChange={handleCallSettingsChange}
+                    {...register('accountSid', { 
+                      required: 'Account SID is required',
+                      pattern: {
+                        value: /^AC[a-f0-9]{32}$/,
+                        message: 'Account SID must start with "AC" followed by 32 characters'
+                      }
+                    })}
+                    className="pl-10 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                    // placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                   />
                 </div>
+                {errors.accountSid && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {errors.accountSid.message}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Found in your Twilio Console dashboard
+                </p>
               </div>
-            )}
+
+              <div>
+                <label htmlFor="authToken" className="block text-sm font-medium text-gray-700 mb-2">
+                  Twilio Auth Token *
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Key className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type={showAuthToken ? "text" : "password"}
+                    {...register('authToken', { 
+                      required: 'Auth Token is required',
+                      minLength: {
+                        value: 32,
+                        message: 'Auth Token must be at least 32 characters'
+                      }
+                    })}
+                    className="pl-10 pr-10 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                    placeholder="Your Twilio Auth Token"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => setShowAuthToken(!showAuthToken)}
+                  >
+                    {showAuthToken ? (
+                      <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                    )}
+                  </button>
+                </div>
+                {errors.authToken && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {errors.authToken.message}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Keep this secure - found in your Twilio Console
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
+                  Twilio Phone Number *
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    {...register('phoneNumber', { 
+                      required: 'Phone number is required',
+                      pattern: {
+                        value: /^\+?[1-9][\d\s\-\(\)]{7,20}$/,
+                        message: 'Please enter a valid phone number'
+                      }
+                    })}
+                    className="pl-10 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                    placeholder="+1 (555) 123-4567"
+                  />
+                </div>
+                {errors.phoneNumber && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {errors.phoneNumber.message}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Your purchased Twilio phone number
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="voiceUrl" className="block text-sm font-medium text-gray-700 mb-2">
+                  Voice Webhook URL
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Globe className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="url"
+                    {...register('voiceUrl')}
+                    className="pl-10 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                    placeholder={`${import.meta.env.VITE_API_BASE_URL}/incoming`}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Leave empty to use default webhook URL
+                </p>
+              </div>
+
+              <div className="flex space-x-4 pt-6">
+                <button
+                  type="submit"
+                  className="flex-1 flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105"
+                >
+                  <Save className="mr-2 h-5 w-5" />
+                  Save Settings
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-6 py-3 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Help Section */}
+          <div className="bg-gray-50 px-8 py-6 border-t">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">How to get your Twilio credentials:</h3>
+            <ol className="text-sm text-gray-600 space-y-2">
+              <li className="flex items-start">
+                <span className="flex-shrink-0 w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium mr-3 mt-0.5">1</span>
+                Sign up for a Twilio account at <a href="https://www.twilio.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">twilio.com</a>
+              </li>
+              <li className="flex items-start">
+                <span className="flex-shrink-0 w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium mr-3 mt-0.5">2</span>
+                Purchase a phone number from the Twilio Console
+              </li>
+              <li className="flex items-start">
+                <span className="flex-shrink-0 w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium mr-3 mt-0.5">3</span>
+                Find your Account SID and Auth Token in the Console dashboard
+              </li>
+              <li className="flex items-start">
+                <span className="flex-shrink-0 w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium mr-3 mt-0.5">4</span>
+                Enter the credentials above and save
+              </li>
+            </ol>
           </div>
         </div>
-      </div>
-      
-      {/* Test Connection */}
-      <div className="bg-white shadow sm:rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200 flex items-center">
-          <HelpCircle className="h-5 w-5 text-gray-400 mr-2" />
-          <h3 className="text-lg font-medium leading-6 text-gray-900">Test Connection</h3>
-        </div>
-        <div className="px-4 py-5 sm:p-6">
-          <p className="text-sm text-gray-500 mb-4">
-            Test the connection to Twilio and Eleven Labs before making calls.
-          </p>
-          
-          <button
-            type="button"
-            onClick={testApiConnection}
-            disabled={apiTestStatus === 'testing'}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {apiTestStatus === 'testing' ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Testing Connection...
-              </>
-            ) : (
-              <>
-                <Key className="mr-2 h-4 w-4" />
-                Test API Connection
-              </>
-            )}
-          </button>
-          
-          {apiTestStatus === 'success' && (
-            <div className="mt-4 p-3 bg-green-50 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <CheckCircle className="h-5 w-5 text-green-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-green-800">
-                    Connection successful! Your API credentials are valid.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {apiTestStatus === 'error' && (
-            <div className="mt-4 p-3 bg-red-50 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <XCircle className="h-5 w-5 text-red-400" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-red-800">
-                    Connection failed. Please check your API credentials and try again.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Save Settings Button */}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={saveSettings}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500"
-        >
-          <Save className="mr-2 h-4 w-4" />
-          Save Settings
-        </button>
       </div>
     </div>
   );
